@@ -1,7 +1,5 @@
 A backend project for submitting transactions, storing transaction details, and tracking their status.
 
-
-
 Tech Stack
 
 Node.js
