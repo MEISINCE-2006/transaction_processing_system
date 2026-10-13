@@ -1,7 +1,5 @@
 A backend project for submitting transactions, storing transaction details, and tracking their status.
 
-
-
 Tech Stack
 
 Node.js
@@ -40,7 +38,12 @@ created transaction tables
 Implemented transaction submission and status retrieval
 Connected Redis with BullMQ
 Added a background worker for processing queued jobs
+Integrated the external mock posting service
+Tested successful transaction processing and remote transaction verification
+Configured automatic retries and exponential backoff
+
+
 
 status
 
-The transaction API and background queue are implemented. Integration with the external posting service, robust retry handling and duplicate prevention are still in progress.
+The transaction API, SQLite storage, Redis-backed queue, background worker, and external posting service integration have been implemented and tested with a successful transaction.
