@@ -4,50 +4,67 @@ import axios from "axios";
 import { connection } from "./queue/transactionQueue";
 import db from "./db/database";
 
-const postingServiceUrl = process.env.POSTING_SERVICE_URL || "http://localhost:8080";
+const postingServiceUrl =
+  process.env.POSTING_SERVICE_URL || "http://localhost:8080";
+
+type Transaction = {
+  id: string;
+  amount: number;
+  currency: string;
+  description: string;
+  status: string;
+  created_at: string;
+};
+
+function updateStatus(id: string, status: string) {
+  db.prepare("UPDATE transactions SET status = ? WHERE id = ?").run(
+    status,
+    id
+  );
+}
+
+async function findRemoteTransaction(id: string) {
+  try {
+    const response = await axios.get(
+      `${postingServiceUrl}/transactions/${id}`,
+      { timeout: 5000 }
+    );
+
+    return response.status === 200 ? "found" : "unknown";
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return "not_found";
+    }
+
+    return "unknown";
+  }
+}
 
 const worker = new Worker(
   "transaction-processing",
   async (job) => {
-    const { transactionId } = job.data;
+    const { transactionId } = job.data as { transactionId: string };
 
-    const transaction = db.prepare(
-      "SELECT * FROM transactions WHERE id = ?"
-    ).get(transactionId) as {
-      id: string;
-      amount: number;
-      currency: string;
-      description: string;
-      status: string;
-      created_at: string;
-    } | undefined;
+    const transaction = db
+      .prepare("SELECT * FROM transactions WHERE id = ?")
+      .get(transactionId) as Transaction | undefined;
 
     if (!transaction) {
-      throw new Error(`Transaction ${transactionId} not found in database`);
+      throw new Error(`Transaction ${transactionId} not found locally`);
     }
 
-    db.prepare(
-      "UPDATE transactions SET status = 'processing' WHERE id = ?"
-    ).run(transactionId);
+    const remoteStatus = await findRemoteTransaction(transactionId);
 
-    try {
-      const existing = await axios.get(
-        `${postingServiceUrl}/transactions/${transactionId}`,
-        { timeout: 3000 }
-      );
-
-      if (existing.status === 200) {
-        db.prepare(
-          "UPDATE transactions SET status = 'completed' WHERE id = ?"
-        ).run(transactionId);
-
-        return { transactionId, status: "completed" };
-      }
-    } catch (error) {
-      if (!axios.isAxiosError(error) || error.response?.status !== 404) {
-        throw error;
-      }
+    if (remoteStatus === "found") {
+      updateStatus(transactionId, "completed");
+      return { transactionId, status: "completed" };
     }
+
+    if (remoteStatus === "unknown") {
+      throw new Error("Unable to determine external transaction status");
+    }
+
+    updateStatus(transactionId, "processing");
 
     const payload = {
       id: transaction.id,
@@ -61,43 +78,33 @@ const worker = new Worker(
       await axios.post(`${postingServiceUrl}/transactions`, payload, {
         timeout: 15000
       });
+
+      updateStatus(transactionId, "completed");
+      return { transactionId, status: "completed" };
     } catch (error) {
-      try {
-        const verification = await axios.get(
-          `${postingServiceUrl}/transactions/${transactionId}`,
-          { timeout: 3000 }
+      const verification = await findRemoteTransaction(transactionId);
+
+      if (verification === "found") {
+        updateStatus(transactionId, "completed");
+        return { transactionId, status: "completed" };
+      }
+
+      if (verification === "unknown") {
+        updateStatus(transactionId, "unknown");
+        throw new Error(
+          "Posting outcome is uncertain; external verification failed"
         );
-
-        if (verification.status === 200) {
-          db.prepare(
-            "UPDATE transactions SET status = 'completed' WHERE id = ?"
-          ).run(transactionId);
-
-          return { transactionId, status: "completed" };
-        }
-      } catch (verificationError) {
-        if (
-          !axios.isAxiosError(verificationError) ||
-          verificationError.response?.status !== 404
-        ) {
-          throw verificationError;
-        }
       }
 
       throw error;
     }
-
-    db.prepare(
-      "UPDATE transactions SET status = 'completed' WHERE id = ?"
-    ).run(transactionId);
-
-    return { transactionId, status: "completed" };
-   },
+  },
   {
     connection,
     concurrency: 1
   }
 );
+
 worker.on("completed", (job) => {
   console.log("Job completed:", job.id);
 });
@@ -106,9 +113,24 @@ worker.on("failed", (job, error) => {
   console.error("Job failed:", job?.id, error.message);
 
   if (job && job.attemptsMade >= 3) {
-    db.prepare(
-      "UPDATE transactions SET status = 'failed' WHERE id = ?"
-    ).run(job.data.transactionId);
+    const verification = findRemoteTransaction(
+      job.data.transactionId
+    );
+
+    verification
+      .then((status) => {
+        if (status === "found") {
+          updateStatus(job.data.transactionId, "completed");
+        } else if (status === "unknown") {
+          updateStatus(job.data.transactionId, "unknown");
+        } else {
+          updateStatus(job.data.transactionId, "failed");
+        }
+      })
+      .catch((verificationError) => {
+        console.error("Final verification failed:", verificationError);
+        updateStatus(job.data.transactionId, "unknown");
+      });
   }
 });
 
