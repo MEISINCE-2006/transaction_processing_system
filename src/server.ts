@@ -1,4 +1,4 @@
-
+import { connection } from "./queue/transactionQueue";
 import express from "express";
 import { randomUUID } from "crypto";
 import db from "./db/database";
@@ -15,12 +15,49 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/api/health", (req, res) => {
-  res.status(200).json({
-    status: "healthy",
-    message: "Transaction Processing API is running",
-    timestamp: new Date().toISOString()
-  });
+app.get("/api/health", async (req, res) => {
+  try {
+    const [redisStatus, counts] = await Promise.all([
+      connection.ping(),
+      transactionQueue.getJobCounts(
+        "waiting",
+        "active",
+        "completed",
+        "failed",
+        "delayed"
+      )
+    ]);
+
+    const database = db.prepare(
+      "SELECT 1 AS connected"
+    ).get();
+
+    const healthy = redisStatus === "PONG" && Boolean(database);
+
+    return res.status(healthy ? 200 : 503).json({
+      status: healthy ? "healthy" : "degraded",
+      services: {
+        database: database ? "connected" : "disconnected",
+        redis: redisStatus === "PONG" ? "connected" : "disconnected"
+      },
+      queue: {
+        waiting: counts.waiting,
+        active: counts.active,
+        completed: counts.completed,
+        failed: counts.failed,
+        delayed: counts.delayed
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Health check failed:", error);
+
+    return res.status(503).json({
+      status: "unhealthy",
+      error: "A health check dependency is unavailable",
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 app.get("/api/db-test", (req, res) => {
@@ -102,6 +139,19 @@ app.get("/api/transactions", (req, res) => {
     transactions
   });
 });
+
+app.get("/api/transactions/:id", (req, res) => {
+  const transaction = db.prepare(
+    "SELECT * FROM transactions WHERE id = ?"
+  ).get(req.params.id);
+
+  if (!transaction) {
+    return res.status(404).json({ error: "Transaction not found" });
+  }
+
+  return res.json(transaction);
+});
+
 
 app.listen(PORT, () => {
   console.log(`Transaction API running at http://localhost:${PORT}`);
