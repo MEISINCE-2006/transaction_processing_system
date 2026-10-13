@@ -37,7 +37,10 @@ created express server
 added health checkup endpoint
 connected SQLite database
 created transaction tables
+Implemented transaction submission and status retrieval
+Connected Redis with BullMQ
+Added a background worker for processing queued jobs
 
 status
 
-The transaction API is implemented with SQLite storage, input validation, transaction submission and status retrieval. Redis queue processing, retries, and duplicate prevention are the next steps.
+The transaction API and background queue are implemented. Integration with the external posting service, robust retry handling and duplicate prevention are still in progress.

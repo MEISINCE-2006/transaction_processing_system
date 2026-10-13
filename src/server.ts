@@ -1,7 +1,8 @@
-
+import { connection } from "./queue/transactionQueue";
 import express from "express";
-import db from "./db/database";
 import { randomUUID } from "crypto";
+import db from "./db/database";
+import { transactionQueue } from "./queue/transactionQueue";
 
 const app = express();
 const PORT = 3000;
@@ -14,12 +15,49 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/api/health", (req, res) => {
-  res.status(200).json({
-    status: "healthy",
-    message: "Transaction Processing API is running",
-    timestamp: new Date().toISOString()
-  });
+app.get("/api/health", async (req, res) => {
+  try {
+    const [redisStatus, counts] = await Promise.all([
+      connection.ping(),
+      transactionQueue.getJobCounts(
+        "waiting",
+        "active",
+        "completed",
+        "failed",
+        "delayed"
+      )
+    ]);
+
+    const database = db.prepare(
+      "SELECT 1 AS connected"
+    ).get();
+
+    const healthy = redisStatus === "PONG" && Boolean(database);
+
+    return res.status(healthy ? 200 : 503).json({
+      status: healthy ? "healthy" : "degraded",
+      services: {
+        database: database ? "connected" : "disconnected",
+        redis: redisStatus === "PONG" ? "connected" : "disconnected"
+      },
+      queue: {
+        waiting: counts.waiting,
+        active: counts.active,
+        completed: counts.completed,
+        failed: counts.failed,
+        delayed: counts.delayed
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Health check failed:", error);
+
+    return res.status(503).json({
+      status: "unhealthy",
+      error: "A health check dependency is unavailable",
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 app.get("/api/db-test", (req, res) => {
@@ -33,7 +71,7 @@ app.get("/api/db-test", (req, res) => {
   });
 });
 
-app.post("/api/transactions", (req, res) => {
+app.post("/api/transactions", async (req, res) => {
   const { amount, currency, description } = req.body;
 
   if (
@@ -58,10 +96,47 @@ app.post("/api/transactions", (req, res) => {
     VALUES (?, ?, ?, ?, 'pending', ?)
   `).run(id, amount, currency, description.trim(), createdAt);
 
+  try {
+    await transactionQueue.add(
+      "process-transaction",
+      { transactionId: id },
+      {
+        jobId: id,
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 2000
+        },
+        removeOnComplete: 1000,
+        removeOnFail: 5000
+      }
+    );
+  } catch (error) {
+    console.error("Failed to enqueue transaction:", error);
+
+    return res.status(503).json({
+      error: "Transaction saved but could not be queued",
+      transactionId: id,
+      status: "pending"
+    });
+  }
+
   return res.status(202).json({
     transactionId: id,
     status: "pending",
     createdAt
+  });
+});
+
+
+app.get("/api/transactions", (req, res) => {
+  const transactions = db.prepare(
+    "SELECT * FROM transactions ORDER BY created_at DESC"
+  ).all();
+
+  return res.status(200).json({
+    count: transactions.length,
+    transactions
   });
 });
 
@@ -71,9 +146,7 @@ app.get("/api/transactions/:id", (req, res) => {
   ).get(req.params.id);
 
   if (!transaction) {
-    return res.status(404).json({
-      error: "Transaction not found"
-    });
+    return res.status(404).json({ error: "Transaction not found" });
   }
 
   return res.json(transaction);
