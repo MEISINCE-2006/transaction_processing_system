@@ -92,10 +92,12 @@ const worker = new Worker(
     ).run(transactionId);
 
     return { transactionId, status: "completed" };
-  },
-  { connection }
+   },
+  {
+    connection,
+    concurrency: 1
+  }
 );
-
 worker.on("completed", (job) => {
   console.log("Job completed:", job.id);
 });
