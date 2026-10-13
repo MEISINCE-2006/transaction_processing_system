@@ -1,7 +1,8 @@
 
 import express from "express";
-import db from "./db/database";
 import { randomUUID } from "crypto";
+import db from "./db/database";
+import { transactionQueue } from "./queue/transactionQueue";
 
 const app = express();
 const PORT = 3000;
@@ -33,7 +34,7 @@ app.get("/api/db-test", (req, res) => {
   });
 });
 
-app.post("/api/transactions", (req, res) => {
+app.post("/api/transactions", async (req, res) => {
   const { amount, currency, description } = req.body;
 
   if (
@@ -58,6 +59,31 @@ app.post("/api/transactions", (req, res) => {
     VALUES (?, ?, ?, ?, 'pending', ?)
   `).run(id, amount, currency, description.trim(), createdAt);
 
+  try {
+    await transactionQueue.add(
+      "process-transaction",
+      { transactionId: id },
+      {
+        jobId: id,
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 2000
+        },
+        removeOnComplete: 1000,
+        removeOnFail: 5000
+      }
+    );
+  } catch (error) {
+    console.error("Failed to enqueue transaction:", error);
+
+    return res.status(503).json({
+      error: "Transaction saved but could not be queued",
+      transactionId: id,
+      status: "pending"
+    });
+  }
+
   return res.status(202).json({
     transactionId: id,
     status: "pending",
@@ -65,20 +91,17 @@ app.post("/api/transactions", (req, res) => {
   });
 });
 
-app.get("/api/transactions/:id", (req, res) => {
-  const transaction = db.prepare(
-    "SELECT * FROM transactions WHERE id = ?"
-  ).get(req.params.id);
 
-  if (!transaction) {
-    return res.status(404).json({
-      error: "Transaction not found"
-    });
-  }
+app.get("/api/transactions", (req, res) => {
+  const transactions = db.prepare(
+    "SELECT * FROM transactions ORDER BY created_at DESC"
+  ).all();
 
-  return res.json(transaction);
+  return res.status(200).json({
+    count: transactions.length,
+    transactions
+  });
 });
-
 
 app.listen(PORT, () => {
   console.log(`Transaction API running at http://localhost:${PORT}`);
