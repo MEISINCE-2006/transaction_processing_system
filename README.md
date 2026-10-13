@@ -40,4 +40,4 @@ created transaction tables
 
 status
 
-Currently implementing the transaction API. Redis queue processing, retries, and duplicate prevention will be added in the upcoming steps.
+The transaction API is implemented with SQLite storage, input validation, transaction submission and status retrieval. Redis queue processing, retries, and duplicate prevention are the next steps.
