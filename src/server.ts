@@ -1,4 +1,5 @@
 import { connection } from "./queue/transactionQueue";
+import axios from "axios";
 import express from "express";
 import { randomUUID } from "crypto";
 import db from "./db/database";
@@ -71,8 +72,10 @@ app.get("/api/db-test", (req, res) => {
   });
 });
 
+
 app.post("/api/transactions", async (req, res) => {
   const { amount, currency, description } = req.body;
+  const idempotencyKey = req.get("Idempotency-Key")?.trim();
 
   if (
     typeof amount !== "number" ||
@@ -88,13 +91,103 @@ app.post("/api/transactions", async (req, res) => {
     });
   }
 
+  if (
+    idempotencyKey &&
+    (idempotencyKey.length > 200 || idempotencyKey.length === 0)
+  ) {
+    return res.status(400).json({
+      error: "Idempotency-Key must contain between 1 and 200 characters"
+    });
+  }
+  if (idempotencyKey) {
+    const existing = db.prepare(`
+      SELECT t.*
+      FROM idempotency_keys k
+      JOIN transactions t ON t.id = k.transaction_id
+      WHERE k.key = ?
+    `).get(idempotencyKey) as {
+      id: string;
+      status: string;
+      created_at: string;
+      amount: number;
+      currency: string;
+      description: string;
+    } | undefined;
+
+    if (existing) {
+      const samePayload =
+        existing.amount === amount &&
+        existing.currency === currency &&
+        existing.description === description.trim();
+
+      if (!samePayload) {
+        return res.status(409).json({
+          error: "Idempotency key has already been used with a different request"
+        });
+      }
+
+      return res.status(200).json({
+        transactionId: existing.id,
+        status: existing.status,
+        createdAt: existing.created_at,
+        idempotentReplay: true
+      });
+    }
+  }
+
+
   const id = randomUUID();
   const createdAt = new Date().toISOString();
 
+  
+const createTransaction = db.transaction(() => {
   db.prepare(`
     INSERT INTO transactions (id, amount, currency, description, status, created_at)
     VALUES (?, ?, ?, ?, 'pending', ?)
   `).run(id, amount, currency, description.trim(), createdAt);
+
+  if (idempotencyKey) {
+    db.prepare(`
+      INSERT INTO idempotency_keys (key, transaction_id)
+      VALUES (?, ?)
+    `).run(idempotencyKey, id);
+  }
+});
+
+    
+
+
+  try {
+    createTransaction();
+  } catch (error) {
+    if (idempotencyKey) {
+      const existing = db.prepare(`
+        SELECT t.*
+        FROM idempotency_keys k
+        JOIN transactions t ON t.id = k.transaction_id
+        WHERE k.key = ?
+      `).get(idempotencyKey) as {
+        id: string;
+        status: string;
+        created_at: string;
+      } | undefined;
+
+      if (existing) {
+        return res.status(200).json({
+          transactionId: existing.id,
+          status: existing.status,
+          createdAt: existing.created_at,
+          idempotentReplay: true
+        });
+      }
+    }
+
+    console.error("Failed to save transaction:", error);
+
+    return res.status(500).json({
+      error: "Failed to save transaction"
+    });
+  }
 
   try {
     await transactionQueue.add(
@@ -124,9 +217,11 @@ app.post("/api/transactions", async (req, res) => {
   return res.status(202).json({
     transactionId: id,
     status: "pending",
-    createdAt
+    createdAt,
+    idempotentReplay: false
   });
 });
+
 
 
 app.get("/api/transactions", (req, res) => {
@@ -150,6 +245,173 @@ app.get("/api/transactions/:id", (req, res) => {
   }
 
   return res.json(transaction);
+});
+
+app.post("/api/transactions/:id/reconcile", async (req, res) => {
+  const id = req.params.id;
+
+  const transaction = db.prepare(
+    "SELECT id FROM transactions WHERE id = ?"
+  ).get(id);
+
+  if (!transaction) {
+    return res.status(404).json({
+      error: "Local transaction not found"
+    });
+  }
+
+  const postingServiceUrl =
+    process.env.POSTING_SERVICE_URL || "http://localhost:8080";
+
+  try {
+    const response = await axios.get(
+      `${postingServiceUrl}/transactions/${id}`,
+      { timeout: 5000 }
+    );
+
+    if (response.status !== 200 || response.data?.id !== id) {
+      return res.status(409).json({
+        status: "unknown",
+        message: "External transaction could not be verified"
+      });
+    }
+
+    db.prepare(
+      "UPDATE transactions SET status = ? WHERE id = ?"
+    ).run("completed", id);
+
+    return res.json({
+      transactionId: id,
+      status: "completed",
+      reconciled: true
+    });
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return res.status(409).json({
+        transactionId: id,
+        status: "not_found",
+        message: "External transaction does not exist; no new transaction was submitted"
+      });
+    }
+
+    return res.status(503).json({
+      transactionId: id,
+      status: "unknown",
+      message: "External transaction status could not be verified"
+    });
+  }
+});
+
+app.post("/api/recovery/requeue", async (req, res) => {
+  const axios = (await import("axios")).default;
+
+  const postingServiceUrl =
+    process.env.POSTING_SERVICE_URL || "http://localhost:8080";
+
+  const candidates = db.prepare(`
+    SELECT id
+    FROM transactions
+    WHERE status = 'pending'
+    ORDER BY created_at ASC
+  `).all() as { id: string }[];
+
+  const results = {
+    checked: 0,
+    requeued: 0,
+    alreadyExists: 0,
+    uncertain: 0,
+    errors: 0
+  };
+
+  for (const transaction of candidates) {
+    results.checked++;
+
+    try {
+      const job = await transactionQueue.getJob(transaction.id);
+
+      if (job) {
+        const state = await job.getState();
+
+        if (
+          state === "waiting" ||
+          state === "active" ||
+          state === "delayed" ||
+          state === "waiting-children"
+        ) {
+          continue;
+        }
+
+        if (state === "completed") {
+          results.alreadyExists++;
+          continue;
+        }
+
+        if (state === "failed") {
+          results.errors++;
+          continue;
+        }
+      }
+
+      let remoteExists = false;
+
+      try {
+        const response = await axios.get(
+          `${postingServiceUrl}/transactions/${transaction.id}`,
+          { timeout: 5000 }
+        );
+
+        remoteExists =
+          response.status === 200 &&
+          response.data?.id === transaction.id;
+      } catch (error) {
+        if (
+          !axios.isAxiosError(error) ||
+          error.response?.status !== 404
+        ) {
+          results.uncertain++;
+          continue;
+        }
+      }
+
+      if (remoteExists) {
+        db.prepare(
+          "UPDATE transactions SET status = 'completed' WHERE id = ?"
+        ).run(transaction.id);
+
+        results.alreadyExists++;
+        continue;
+      }
+
+      if (job) {
+        await job.remove();
+      }
+
+      await transactionQueue.add(
+        "process-transaction",
+        { transactionId: transaction.id },
+        {
+          jobId: transaction.id,
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 2000
+          },
+          removeOnComplete: 1000,
+          removeOnFail: 5000
+        }
+      );
+
+      results.requeued++;
+    } catch (error) {
+      console.error(
+        `Recovery failed for ${transaction.id}:`,
+        error
+      );
+      results.errors++;
+    }
+  }
+
+  return res.json(results);
 });
 
 
