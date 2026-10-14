@@ -6,6 +6,11 @@ Node.js
 TypeScript
 Express.js
 SQLite
+better-sqlite3
+Redis
+BullMQ
+Axios
+Docker
 
 Features
 
@@ -14,6 +19,7 @@ Transaction storage using SQLite
 Transaction status tracking
 API health check
 Basic input validation
+
 
 Setup
 
@@ -41,9 +47,13 @@ Added a background worker for processing queued jobs
 Integrated the external mock posting service
 Tested successful transaction processing and remote transaction verification
 Configured automatic retries and exponential backoff
-
+Implemented idempotency key validation and duplicate request prevention
+Added conflict handling for reused idempotency keys with different payloads
+Implemented transaction reconciliation and recovery endpoints
+Tested successful transaction processing, idempotent requests and conflicting requests
+Verified TypeScript compilation and Git consistency checks
 
 
 status
 
-The transaction API, SQLite storage, Redis-backed queue, background worker, and external posting service integration have been implemented and tested with a successful transaction.
+The core transaction processing system has been implemented and tested, including asynchronous processing, transaction tracking, idempotency validation, retries and external service verification. Comprehensive load testing and further reliability testing remain to be completed.
