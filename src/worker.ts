@@ -16,6 +16,8 @@ type Transaction = {
   created_at: string;
 };
 
+type RemoteStatus = "found" | "not_found" | "unknown";
+
 function updateStatus(id: string, status: string) {
   db.prepare("UPDATE transactions SET status = ? WHERE id = ?").run(
     status,
@@ -23,14 +25,16 @@ function updateStatus(id: string, status: string) {
   );
 }
 
-async function findRemoteTransaction(id: string) {
+async function findRemoteTransaction(id: string): Promise<RemoteStatus> {
   try {
     const response = await axios.get(
       `${postingServiceUrl}/transactions/${id}`,
       { timeout: 5000 }
     );
 
-    return response.status === 200 ? "found" : "unknown";
+    return response.status === 200 && response.data?.id === id
+      ? "found"
+      : "unknown";
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       return "not_found";
@@ -61,6 +65,7 @@ const worker = new Worker(
     }
 
     if (remoteStatus === "unknown") {
+      updateStatus(transactionId, "unknown");
       throw new Error("Unable to determine external transaction status");
     }
 
@@ -78,9 +83,6 @@ const worker = new Worker(
       await axios.post(`${postingServiceUrl}/transactions`, payload, {
         timeout: 15000
       });
-
-      updateStatus(transactionId, "completed");
-      return { transactionId, status: "completed" };
     } catch (error) {
       const verification = await findRemoteTransaction(transactionId);
 
@@ -98,6 +100,20 @@ const worker = new Worker(
 
       throw error;
     }
+
+    const verification = await findRemoteTransaction(transactionId);
+
+    if (verification === "found") {
+      updateStatus(transactionId, "completed");
+      return { transactionId, status: "completed" };
+    }
+
+    if (verification === "unknown") {
+      updateStatus(transactionId, "unknown");
+      throw new Error("Posting succeeded but verification was inconclusive");
+    }
+
+    throw new Error("Posting returned successfully but transaction was not found");
   },
   {
     connection,
@@ -105,32 +121,29 @@ const worker = new Worker(
   }
 );
 
-worker.on("completed", (job) => {
-  console.log("Job completed:", job.id);
+worker.on("completed", (job, result) => {
+  console.log("Job completed:", job.id, result);
 });
 
 worker.on("failed", (job, error) => {
   console.error("Job failed:", job?.id, error.message);
 
   if (job && job.attemptsMade >= 3) {
-    const verification = findRemoteTransaction(
-      job.data.transactionId
-    );
+    void (async () => {
+      const transactionId = job.data.transactionId;
+      const status = await findRemoteTransaction(transactionId);
 
-    verification
-      .then((status) => {
-        if (status === "found") {
-          updateStatus(job.data.transactionId, "completed");
-        } else if (status === "unknown") {
-          updateStatus(job.data.transactionId, "unknown");
-        } else {
-          updateStatus(job.data.transactionId, "failed");
-        }
-      })
-      .catch((verificationError) => {
-        console.error("Final verification failed:", verificationError);
-        updateStatus(job.data.transactionId, "unknown");
-      });
+      if (status === "found") {
+        updateStatus(transactionId, "completed");
+      } else if (status === "unknown") {
+        updateStatus(transactionId, "unknown");
+      } else {
+        updateStatus(transactionId, "failed");
+      }
+    })().catch((error) => {
+      console.error("Final verification failed:", error);
+      updateStatus(job.data.transactionId, "unknown");
+    });
   }
 });
 
