@@ -72,8 +72,10 @@ app.get("/api/db-test", (req, res) => {
   });
 });
 
+
 app.post("/api/transactions", async (req, res) => {
   const { amount, currency, description } = req.body;
+  const idempotencyKey = req.get("Idempotency-Key")?.trim();
 
   if (
     typeof amount !== "number" ||
@@ -89,13 +91,103 @@ app.post("/api/transactions", async (req, res) => {
     });
   }
 
+  if (
+    idempotencyKey &&
+    (idempotencyKey.length > 200 || idempotencyKey.length === 0)
+  ) {
+    return res.status(400).json({
+      error: "Idempotency-Key must contain between 1 and 200 characters"
+    });
+  }
+  if (idempotencyKey) {
+    const existing = db.prepare(`
+      SELECT t.*
+      FROM idempotency_keys k
+      JOIN transactions t ON t.id = k.transaction_id
+      WHERE k.key = ?
+    `).get(idempotencyKey) as {
+      id: string;
+      status: string;
+      created_at: string;
+      amount: number;
+      currency: string;
+      description: string;
+    } | undefined;
+
+    if (existing) {
+      const samePayload =
+        existing.amount === amount &&
+        existing.currency === currency &&
+        existing.description === description.trim();
+
+      if (!samePayload) {
+        return res.status(409).json({
+          error: "Idempotency key has already been used with a different request"
+        });
+      }
+
+      return res.status(200).json({
+        transactionId: existing.id,
+        status: existing.status,
+        createdAt: existing.created_at,
+        idempotentReplay: true
+      });
+    }
+  }
+
+
   const id = randomUUID();
   const createdAt = new Date().toISOString();
 
+  
+const createTransaction = db.transaction(() => {
   db.prepare(`
     INSERT INTO transactions (id, amount, currency, description, status, created_at)
     VALUES (?, ?, ?, ?, 'pending', ?)
   `).run(id, amount, currency, description.trim(), createdAt);
+
+  if (idempotencyKey) {
+    db.prepare(`
+      INSERT INTO idempotency_keys (key, transaction_id)
+      VALUES (?, ?)
+    `).run(idempotencyKey, id);
+  }
+});
+
+    
+
+
+  try {
+    createTransaction();
+  } catch (error) {
+    if (idempotencyKey) {
+      const existing = db.prepare(`
+        SELECT t.*
+        FROM idempotency_keys k
+        JOIN transactions t ON t.id = k.transaction_id
+        WHERE k.key = ?
+      `).get(idempotencyKey) as {
+        id: string;
+        status: string;
+        created_at: string;
+      } | undefined;
+
+      if (existing) {
+        return res.status(200).json({
+          transactionId: existing.id,
+          status: existing.status,
+          createdAt: existing.created_at,
+          idempotentReplay: true
+        });
+      }
+    }
+
+    console.error("Failed to save transaction:", error);
+
+    return res.status(500).json({
+      error: "Failed to save transaction"
+    });
+  }
 
   try {
     await transactionQueue.add(
@@ -125,9 +217,11 @@ app.post("/api/transactions", async (req, res) => {
   return res.status(202).json({
     transactionId: id,
     status: "pending",
-    createdAt
+    createdAt,
+    idempotentReplay: false
   });
 });
+
 
 
 app.get("/api/transactions", (req, res) => {
