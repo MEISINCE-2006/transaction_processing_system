@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import db from "./db/database";
 import { transactionQueue } from "./queue/transactionQueue";
 
-const app = express();
+export const app = express();
 const PORT = 3000;
 
 app.use(express.json());
@@ -139,7 +139,7 @@ app.post("/api/transactions", async (req, res) => {
   const id = randomUUID();
   const createdAt = new Date().toISOString();
 
-  
+
 const createTransaction = db.transaction(() => {
   db.prepare(`
     INSERT INTO transactions (id, amount, currency, description, status, created_at)
@@ -153,10 +153,6 @@ const createTransaction = db.transaction(() => {
     `).run(idempotencyKey, id);
   }
 });
-
-    
-
-
   try {
     createTransaction();
   } catch (error) {
@@ -170,9 +166,23 @@ const createTransaction = db.transaction(() => {
         id: string;
         status: string;
         created_at: string;
+        amount: number;
+        currency: string;
+        description: string;
       } | undefined;
 
       if (existing) {
+        const samePayload =
+          existing.amount === amount &&
+          existing.currency === currency &&
+          existing.description === description.trim();
+
+        if (!samePayload) {
+          return res.status(409).json({
+            error: "Idempotency key has already been used with a different request"
+          });
+        }
+
         return res.status(200).json({
           transactionId: existing.id,
           status: existing.status,
@@ -188,6 +198,7 @@ const createTransaction = db.transaction(() => {
       error: "Failed to save transaction"
     });
   }
+
 
   try {
     await transactionQueue.add(
@@ -414,7 +425,8 @@ app.post("/api/recovery/requeue", async (req, res) => {
   return res.json(results);
 });
 
-
-app.listen(PORT, () => {
-  console.log(`Transaction API running at http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`Transaction API running at http://localhost:${PORT}`);
+  });
+}
