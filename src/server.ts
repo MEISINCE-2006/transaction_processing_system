@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import db from "./db/database";
 import { transactionQueue } from "./queue/transactionQueue";
 
-const app = express();
+export const app = express();
 const PORT = 3000;
 
 app.use(express.json());
@@ -153,11 +153,6 @@ const createTransaction = db.transaction(() => {
     `).run(idempotencyKey, id);
   }
 });
-
-
-
-
-
   try {
     createTransaction();
   } catch (error) {
@@ -430,7 +425,8 @@ app.post("/api/recovery/requeue", async (req, res) => {
   return res.json(results);
 });
 
-
-app.listen(PORT, () => {
-  console.log(`Transaction API running at http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`Transaction API running at http://localhost:${PORT}`);
+  });
+}
