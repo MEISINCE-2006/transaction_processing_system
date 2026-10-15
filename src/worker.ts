@@ -117,7 +117,7 @@ const worker = new Worker(
   },
   {
     connection,
-    concurrency: 5
+    concurrency: 100
   }
 );
 
@@ -125,23 +125,28 @@ worker.on("completed", (job, result) => {
   console.log("Job completed:", job.id, result);
 });
 
+
 worker.on("failed", (job, error) => {
   console.error("Job failed:", job?.id, error.message);
 
   if (job && job.attemptsMade >= 3) {
     void (async () => {
       const transactionId = job.data.transactionId;
-      const status = await findRemoteTransaction(transactionId);
 
-      if (status === "found") {
-        updateStatus(transactionId, "completed");
-      } else if (status === "unknown") {
+      try {
+        const status = await findRemoteTransaction(transactionId);
+
+        if (status === "found") {
+          updateStatus(transactionId, "completed");
+        } else {
+          updateStatus(transactionId, "unknown");
+        }
+      } catch (verificationError) {
+        console.error("Final verification failed:", verificationError);
         updateStatus(transactionId, "unknown");
-      } else {
-        updateStatus(transactionId, "failed");
       }
-    })().catch((error) => {
-      console.error("Final verification failed:", error);
+    })().catch((verificationError) => {
+      console.error("Final verification failed:", verificationError);
       updateStatus(job.data.transactionId, "unknown");
     });
   }

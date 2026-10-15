@@ -7,3 +7,9 @@ transactions.db-shm
 transactions.db-wal
 dist/
 coverage/
+
+# Runtime logs
+api.log
+
+# Runtime logs
+api.log

@@ -8,7 +8,27 @@ import { transactionQueue } from "./queue/transactionQueue";
 export const app = express();
 const PORT = 3000;
 
+
 app.use(express.json());
+
+app.use((req, res, next) => {
+  if (
+    req.method === "POST" &&
+    req.path === "/api/transactions" &&
+    req.headers["x-load-test-run"]
+  ) {
+    console.log("LOAD_TEST_REQUEST", req.headers["x-load-test-run"]);
+  }
+
+  next();
+});
+
+app.use((req, res, next) => {
+  if (req.method === "POST" && req.path === "/api/transactions") {
+    console.log("POST /api/transactions", new Date().toISOString());
+  }
+  next();
+});
 
 app.get("/", (req, res) => {
   res.json({
@@ -321,9 +341,9 @@ app.post("/api/recovery/requeue", async (req, res) => {
 
   const candidates = db.prepare(`
     SELECT id
-    FROM transactions
-    WHERE status = 'pending'
-    ORDER BY created_at ASC
+FROM transactions
+WHERE status IN ('pending', 'unknown')
+ORDER BY created_at ASC
   `).all() as { id: string }[];
 
   const results = {
@@ -358,9 +378,8 @@ app.post("/api/recovery/requeue", async (req, res) => {
         }
 
         if (state === "failed") {
-          results.errors++;
-          continue;
-        }
+  await job.remove();
+}
       }
 
       let remoteExists = false;
