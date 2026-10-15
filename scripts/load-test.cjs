@@ -8,9 +8,9 @@ console.log("Test run ID:", runId);
 
 const instance = autocannon({
   url: "http://localhost:3000",
-  connections: 100,
+  connections: 300,
   duration: 30,
-  overallRate: 1000,
+  overallRate: 1200,
   requests: [
     {
       method: "POST",

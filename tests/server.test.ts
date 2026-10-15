@@ -26,6 +26,29 @@ describe("Transaction Processing API", () => {
 
     expect(response.status).toBe(400);
   });
+  it.each([
+  {
+    amount: 0,
+    currency: "INR",
+    description: "Zero amount"
+  },
+  {
+    amount: 100,
+    currency: "inr",
+    description: "Invalid currency"
+  },
+  {
+    amount: 100,
+    currency: "INR",
+    description: ""
+  }
+])("rejects invalid transaction data: $description", async (payload) => {
+  const response = await request(app)
+    .post("/api/transactions")
+    .send(payload);
+
+  expect(response.status).toBe(400);
+});
 
   it("returns the same transaction for repeated idempotency keys", async () => {
     const payload = {

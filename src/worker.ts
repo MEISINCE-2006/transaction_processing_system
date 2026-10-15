@@ -121,10 +121,6 @@ const worker = new Worker(
   }
 );
 
-worker.on("completed", (job, result) => {
-  console.log("Job completed:", job.id, result);
-});
-
 
 worker.on("failed", (job, error) => {
   console.error("Job failed:", job?.id, error.message);
