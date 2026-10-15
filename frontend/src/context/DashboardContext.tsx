@@ -118,15 +118,12 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsRefreshing(true);
 
     try {
-      // 1. Fetch real health
       const healthData = await apiClient.getHealth();
       setHealth(healthData);
       setClientLatencyMs(apiClient.lastMeasuredLatencyMs);
 
-      // Evaluate active alerts
       const currentAlerts = evaluateAlerts(healthData);
       setAlerts(prev => {
-        // Keep previously acknowledged or existing alerts, updating active statuses
         const activeIds = new Set(currentAlerts.map(a => a.id));
         const retained = prev.map(a => {
           if (!activeIds.has(a.id) && a.status === 'active') {
@@ -139,7 +136,6 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return [...newAlerts, ...retained];
       });
 
-      // 2. Fetch real transactions summary & recent items (limit=5)
       try {
         const txData = await apiClient.getTransactions({ limit: 5, page: 1 });
         setRecentTransactions(txData.transactions || []);
@@ -167,7 +163,6 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [evaluateAlerts]);
 
-  // Tab visibility management: pause polling when hidden, refresh immediately when shown
   useEffect(() => {
     const handleVisibilityChange = () => {
       const isVisible = document.visibilityState === 'visible';
@@ -183,7 +178,6 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   }, [refreshDashboard]);
 
-  // Polling loop: every 7 seconds when tab is visible
   useEffect(() => {
     refreshDashboard();
 

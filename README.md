@@ -117,4 +117,4 @@ Start the Monitoring Dashboard Frontend (in a separate terminal):
 
 Default development credentials:
 - Username: `admin`
-- Password: `ChangeMe_Admin_2026!`
+- Password: `admin123`

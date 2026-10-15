@@ -76,7 +76,6 @@ export const Header: React.FC<HeaderProps> = ({ currentPage, onToggleSidebar }) 
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        {/* Connection status indicator */}
         <div
           style={{
             display: 'flex',
@@ -96,12 +95,10 @@ export const Header: React.FC<HeaderProps> = ({ currentPage, onToggleSidebar }) 
           </span>
         </div>
 
-        {/* Last refreshed */}
         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
           Updated: <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{formatLastUpdated(lastUpdated)}</span>
         </div>
 
-        {/* Manual Refresh Button */}
         <button
           onClick={refreshDashboard}
           disabled={isRefreshing}

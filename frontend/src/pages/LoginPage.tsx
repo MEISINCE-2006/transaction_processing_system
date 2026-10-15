@@ -204,13 +204,7 @@ export const LoginPage: React.FC = () => {
             lineHeight: '1.5'
           }}
         >
-          <div style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-            Local Development Account
-          </div>
-          <div>Configure via backend environment variables:</div>
-          <code style={{ fontSize: '11px', display: 'inline-block', marginTop: '2px', backgroundColor: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>
-            ADMIN_USERNAME / ADMIN_PASSWORD
-          </code>
+
         </div>
       </div>
     </div>
