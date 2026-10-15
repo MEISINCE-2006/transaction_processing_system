@@ -92,4 +92,29 @@ Load Testing
 
 status
 
-The core transaction processing system has been implemented and tested, including asynchronous processing with Redis and BullMQ, transaction status tracking, idempotency validation, automatic retries with exponential backoff, external service verification, and transaction reconciliation and recovery. Automated API tests and TypeScript compilation have passed. Load testing has demonstrated approximately 1,000 requests per second under the tested configuration. Further investigation of load-test response counts and additional reliability testing remain to be completed.Automated API tests and TypeScript compilation have passed. Load testing has demonstrated approximately 1,000 requests per second under the tested configuration. Further investigation of load-test response counts and additional reliability testing remain to be completed.
+The core transaction processing system has been implemented and tested, including asynchronous processing with Redis and BullMQ, transaction status tracking, idempotency validation, automatic retries with exponential backoff, external service verification, and transaction reconciliation and recovery. Automated API tests and TypeScript compilation have passed. Load testing has demonstrated approximately 1,000 requests per second under the tested configuration. Further investigation of load-test response counts and additional reliability testing remain to be completed.
+
+Running Frontend and Backend Together
+
+Start the Backend API Server:
+  
+   npm install
+   npm run dev
+
+   Backend API runs at: `http://localhost:3000`
+
+Start the Background Worker (in a separate terminal):
+   
+   npx tsx src/worker.ts
+
+Start the Monitoring Dashboard Frontend (in a separate terminal):
+  
+   cd frontend
+   npm install
+   npm run dev
+
+   Dashboard UI runs at: `http://localhost:5173`
+
+Default development credentials:
+- Username: `admin`
+- Password: `ChangeMe_Admin_2026!`
