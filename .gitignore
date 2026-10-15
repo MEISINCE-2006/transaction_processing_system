@@ -13,3 +13,10 @@ api.log
 
 # Runtime logs
 api.log
+# Test database files
+test-transactions.db
+*.db-shm
+*.db-wal
+
+# Temporary inspection script
+inspect-failed-jobs.cjs

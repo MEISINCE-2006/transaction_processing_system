@@ -1,3 +1,4 @@
+
 const autocannon = require("autocannon");
 const { randomUUID } = require("crypto");
 
@@ -34,22 +35,28 @@ const instance = autocannon({
 autocannon.track(instance, { renderProgressBar: true });
 
 instance.on("done", (result) => {
-    console.log("\nLoad test completed");
+  const responses =
+    result["1xx"] +
+    result["2xx"] +
+    result["3xx"] +
+    result["4xx"] +
+    result["5xx"];
+
+  console.log("\nLoad test completed");
   console.log("Test run ID:", runId);
   console.log("Duration (seconds):", result.duration);
   console.log("Autocannon request counter (includes initial estimate):", result.requests.sent);
-  console.log(
-    "Completed HTTP responses (status codes):",
-    result["1xx"] + result["2xx"] + result["3xx"] + result["4xx"] + result["5xx"]
-  );
+  console.log("HTTP responses received:", responses);
   console.log("Successful responses (2xx):", result["2xx"]);
   console.log("Client errors (4xx):", result["4xx"]);
   console.log("Server errors (5xx):", result["5xx"]);
-  console.log("Average throughput (req/sec):", result.requests.average);
+  console.log("Average throughput (responses/sec):", result.requests.average);
   console.log("Average latency (ms):", result.latency.average);
   console.log("P99 latency (ms):", result.latency.p99);
   console.log("Errors:", result.errors);
   console.log("Timeouts:", result.timeouts);
   console.log("Resets:", result.resets);
   console.log("Non-2xx responses:", result.non2xx);
+  console.log("\nTo verify API receipts, query the database using this run ID:");
+  console.log(runId);
 });

@@ -8,8 +8,9 @@ const connection = new IORedis({
   maxRetriesPerRequest: null
 });
 
-export const transactionQueue = new Queue("transaction-processing", {
-  connection
-});
+export const transactionQueue = new Queue(
+  process.env.QUEUE_NAME || "transaction-processing",
+  { connection }
+);
 
 export { connection };

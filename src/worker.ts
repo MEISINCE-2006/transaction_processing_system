@@ -45,7 +45,7 @@ async function findRemoteTransaction(id: string): Promise<RemoteStatus> {
 }
 
 const worker = new Worker(
-  "transaction-processing",
+  process.env.QUEUE_NAME || "transaction-processing",
   async (job) => {
     const { transactionId } = job.data as { transactionId: string };
 
