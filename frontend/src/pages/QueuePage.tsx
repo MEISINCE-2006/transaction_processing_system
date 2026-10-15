@@ -31,7 +31,6 @@ export const QueuePage: React.FC = () => {
     try {
       const res = await apiClient.runRecovery();
       setRecoveryResult(res);
-      // Refresh dashboard to reflect any newly queued or updated counts
       await refreshDashboard();
     } catch (err: any) {
       setRecoveryError(err.message || 'Recovery execution failed');
@@ -50,7 +49,6 @@ export const QueuePage: React.FC = () => {
 
   return (
     <div>
-      {/* Top action header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h2>BullMQ Job Queue & Worker Health</h2>
@@ -68,7 +66,6 @@ export const QueuePage: React.FC = () => {
         </button>
       </div>
 
-      {/* BullMQ Job State Cards */}
       <div className="grid-cards">
         <MetricCard
           label="Waiting Jobs"
@@ -102,9 +99,7 @@ export const QueuePage: React.FC = () => {
         />
       </div>
 
-      {/* Infrastructure Details & Worker Architecture */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-        {/* Redis Connection Card */}
         <div className="card">
           <div className="card-header">
             <div>
@@ -145,7 +140,6 @@ export const QueuePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Worker Engine Architecture */}
         <div className="card">
           <div className="card-header">
             <div>
@@ -181,7 +175,6 @@ export const QueuePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Recovery and Requeue Panel */}
       <div className="card">
         <div className="card-header">
           <div>
