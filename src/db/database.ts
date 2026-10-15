@@ -1,7 +1,7 @@
 
 import Database from "better-sqlite3";
 
-const db = new Database("transactions.db");
+const db = new Database(process.env.DB_PATH || "transactions.db");
 
 db.pragma("journal_mode = WAL");
 
