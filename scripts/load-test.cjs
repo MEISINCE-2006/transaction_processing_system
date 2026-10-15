@@ -1,4 +1,3 @@
-
 const autocannon = require("autocannon");
 const { randomUUID } = require("crypto");
 
@@ -35,26 +34,20 @@ const instance = autocannon({
 autocannon.track(instance, { renderProgressBar: true });
 
 instance.on("done", (result) => {
-  console.log("Autocannon requests started:", result.totalRequests);
-  console.log("Autocannon responses completed:", result.totalCompletedRequests);
-  console.log("Autocannon result keys:", Object.keys(result));
-  console.log("Autocannon requests sent:", result.requests.sent);
-  console.log("Requests sent:", result.requests.sent);
-console.log("Responses counted:", result.requests.total);
-console.log("HTTP status counts:", {
-  "1xx": result["1xx"],
-  "2xx": result["2xx"],
-  "3xx": result["3xx"],
-  "4xx": result["4xx"],
-  "5xx": result["5xx"],
-  errors: result.errors,
-  timeouts: result.timeouts,
-  resets: result.resets
-});
   console.log("\nLoad test completed");
   console.log("Test run ID:", runId);
-  console.log("Requests per second (average):", result.requests.average);
-  console.log("Total requests:", result.requests.total);
-  console.log("Latency average (ms):", result.latency.average);
+  console.log("Requests sent:", result.requests.sent);
+  console.log("Responses received:", result.requests.total);
+  console.log("Average throughput (req/sec):", result.requests.average);
+  console.log("Average latency (ms):", result.latency.average);
+  console.log("P99 latency (ms):", result.latency.p99);
   console.log("Non-2xx responses:", result.non2xx);
+  console.log("HTTP status counts:", {
+    "2xx": result["2xx"],
+    "4xx": result["4xx"],
+    "5xx": result["5xx"],
+    errors: result.errors,
+    timeouts: result.timeouts,
+    resets: result.resets
+  });
 });
