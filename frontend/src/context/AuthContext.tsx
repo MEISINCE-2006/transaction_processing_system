@@ -37,7 +37,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setTokenState(storedToken);
         }
       } catch (err) {
-        // Token expired or invalid
         apiClient.setToken(null);
         if (isMounted) {
           setUser(null);
@@ -66,7 +65,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await apiClient.logout();
     } catch {
-      // Ignore network errors on logout
     } finally {
       setUser(null);
       setTokenState(null);

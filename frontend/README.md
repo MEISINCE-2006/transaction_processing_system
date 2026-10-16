@@ -57,4 +57,4 @@ npm run preview
 Configure these environment variables in your backend environment:
 
 - **Username**: `admin`
-- **Password**: `ChangeMe_Admin_2026!`
+- **Password**: `admin123`

@@ -102,7 +102,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="sidebar-nav">
           <div style={{ padding: '0 6px 6px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -134,7 +133,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           ))}
 
-          {/* Mode Switcher */}
           <div style={{ marginTop: '20px', padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
               <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -156,7 +154,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </nav>
 
-        {/* Footer with User info & logout */}
         <div className="sidebar-footer">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div

@@ -62,7 +62,6 @@ class ApiClient {
       }
 
       if (response.status === 401) {
-        // If unauthorized, clear invalid token if not on login endpoint
         if (!endpoint.includes('/api/auth/login')) {
           this.setToken(null);
         }
@@ -96,7 +95,6 @@ class ApiClient {
     }
   }
 
-  // Auth Endpoints
   public async login(username: string, password: string): Promise<AuthResponse> {
     const res = await this.request<AuthResponse>('/api/auth/login', {
       method: 'POST',
@@ -123,14 +121,12 @@ class ApiClient {
     }
   }
 
-  // System Health & Queue
   public async getHealth(): Promise<SystemHealth> {
     return this.request<SystemHealth>('/api/health', {
       method: 'GET'
     });
   }
 
-  // Transactions
   public async getTransactions(params?: {
     page?: number;
     limit?: number;
