@@ -209,7 +209,8 @@ export const LoginPage: React.FC = () => {
           </div>
           <div>Configure via backend environment variables:</div>
           <code style={{ fontSize: '11px', display: 'inline-block', marginTop: '2px', backgroundColor: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>
-            ADMIN_USERNAME / ADMIN_PASSWORD
+            username : admin / password : admin@123
+
           </code>
         </div>
       </div>

@@ -13,6 +13,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { apiClient } from '../api/client';
+import { useToast } from '../components/common/ToastProvider';
 import type { Transaction, TransactionStatus } from '../types';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -20,6 +21,7 @@ import { EmptyState } from '../components/common/EmptyState';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 
 export const TransactionsPage: React.FC = () => {
+  const { toast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -32,14 +34,10 @@ export const TransactionsPage: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Detail Modal State
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [isReconciling, setIsReconciling] = useState<boolean>(false);
   const [reconcileResult, setReconcileResult] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<boolean>(false);
-
-  // Create Transaction Modal State
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
   const [createAmount, setCreateAmount] = useState<string>('100');
   const [createCurrency, setCreateCurrency] = useState<string>('INR');
@@ -102,13 +100,13 @@ export const TransactionsPage: React.FC = () => {
     try {
       const res = await apiClient.reconcileTransaction(id);
       setReconcileResult(`Reconciled: Status updated to "${res.status}".`);
-      // Update local transaction in modal and list
       setSelectedTx(prev => prev ? { ...prev, status: res.status as TransactionStatus } : null);
       setTransactions(prev =>
         prev.map(t => (t.id === id ? { ...t, status: res.status as TransactionStatus } : t))
       );
     } catch (err: any) {
       setReconcileResult(`Reconciliation note: ${err.message}`);
+      toast('error', `Reconcile failed: ${err.message}`);
     } finally {
       setIsReconciling(false);
     }
@@ -147,8 +145,7 @@ export const TransactionsPage: React.FC = () => {
       setCreateSuccess(
         `Transaction created: ${res.transactionId} (Status: ${res.status}${res.idempotentReplay ? ', Idempotent Replay' : ''})`
       );
-
-      // Refresh list
+      toast('success', `Transaction ${res.transactionId} created successfully`);
       fetchTransactions();
       setTimeout(() => {
         setIsCreateOpen(false);
@@ -156,6 +153,7 @@ export const TransactionsPage: React.FC = () => {
       }, 1500);
     } catch (err: any) {
       setCreateError(err.message || 'Failed to submit transaction');
+      toast('error', `Failed to create transaction: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -165,7 +163,6 @@ export const TransactionsPage: React.FC = () => {
 
   return (
     <div>
-      {/* Action Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h2>Transaction Records</h2>
@@ -198,7 +195,6 @@ export const TransactionsPage: React.FC = () => {
 
       {error && <ErrorAlert message={error} onRetry={fetchTransactions} />}
 
-      {/* Filter Bar */}
       <div className="card" style={{ padding: '16px', marginBottom: '20px' }}>
         <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           {/* Search */}
@@ -219,8 +215,6 @@ export const TransactionsPage: React.FC = () => {
               />
             </div>
           </div>
-
-          {/* Status Filter */}
           <div style={{ width: '160px' }}>
             <label className="form-label">Status</label>
             <select
@@ -239,8 +233,6 @@ export const TransactionsPage: React.FC = () => {
               <option value="unknown">Unknown</option>
             </select>
           </div>
-
-          {/* Date Range: From */}
           <div style={{ width: '160px' }}>
             <label className="form-label">Created From</label>
             <input
@@ -254,7 +246,6 @@ export const TransactionsPage: React.FC = () => {
             />
           </div>
 
-          {/* Date Range: To */}
           <div style={{ width: '160px' }}>
             <label className="form-label">Created To</label>
             <input
@@ -268,7 +259,6 @@ export const TransactionsPage: React.FC = () => {
             />
           </div>
 
-          {/* Submit Search & Reset */}
           <div style={{ display: 'flex', gap: '8px' }}>
             <button type="submit" className="btn btn-secondary">
               <Filter size={14} />
@@ -284,8 +274,6 @@ export const TransactionsPage: React.FC = () => {
           </div>
         </form>
       </div>
-
-      {/* Transactions Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {isLoading ? (
           <LoadingSpinner message="Loading transactions from SQLite database..." />
@@ -366,7 +354,6 @@ export const TransactionsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Pagination Bar */}
         <div
           style={{
             display: 'flex',
@@ -425,8 +412,6 @@ export const TransactionsPage: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Inspect Detail Modal */}
       {selectedTx && (
         <div className="modal-overlay" onClick={() => setSelectedTx(null)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -515,7 +500,6 @@ export const TransactionsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Submit Transaction Modal */}
       {isCreateOpen && (
         <div className="modal-overlay" onClick={() => setIsCreateOpen(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>

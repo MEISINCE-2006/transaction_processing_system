@@ -1,6 +1,7 @@
 import { connection } from "./queue/transactionQueue";
 import axios from "axios";
 import express from "express";
+import cors from 'cors';
 import { randomUUID } from "crypto";
 import db from "./db/database";
 import { transactionQueue } from "./queue/transactionQueue";
@@ -8,8 +9,117 @@ import { transactionQueue } from "./queue/transactionQueue";
 export const app = express();
 const PORT = 3000;
 
+app.use(cors({
+  origin: 'http://localhost:5173'
+}));
 
 app.use(express.json());
+app.use(express.json());
+const ALLOWED_ORIGINS = new Set([
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
+  "http://localhost:3000"
+]);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Idempotency-Key");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin@123";
+const activeTokens = new Map<string, { username: string; expiresAt: number }>();
+
+function generateAuthToken(username: string): string {
+  const token = randomUUID();
+  activeTokens.set(token, {
+    username,
+    expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
+  });
+  return token;
+}
+
+function verifyAuthToken(token: string): { username: string } | null {
+  const session = activeTokens.get(token);
+  if (!session) return null;
+  if (Date.now() > session.expiresAt) {
+    activeTokens.delete(token);
+    return null;
+  }
+  return { username: session.username };
+}
+
+app.post("/api/auth/login", (req, res) => {
+  const { username, password } = req.body || {};
+
+  if (!username || typeof username !== "string" || !password || typeof password !== "string") {
+    return res.status(400).json({
+      error: "Username and password are required"
+    });
+  }
+
+  if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+    return res.status(401).json({
+      error: "Invalid username or password"
+    });
+  }
+
+  const token = generateAuthToken(username);
+  return res.status(200).json({
+    token,
+    user: {
+      username,
+      role: "admin"
+    }
+  });
+});
+
+app.get("/api/auth/me", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({
+      error: "Missing or invalid authorization token"
+    });
+  }
+
+  const token = authHeader.slice(7).trim();
+  const session = verifyAuthToken(token);
+
+  if (!session) {
+    return res.status(401).json({
+      error: "Invalid or expired session"
+    });
+  }
+
+  return res.status(200).json({
+    user: {
+      username: session.username,
+      role: "admin"
+    }
+  });
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    activeTokens.delete(token);
+  }
+
+  return res.status(200).json({
+    message: "Logged out successfully"
+  });
+});
 
 
 
@@ -143,19 +253,19 @@ app.post("/api/transactions", async (req, res) => {
   const createdAt = new Date().toISOString();
 
 
-const createTransaction = db.transaction(() => {
-  db.prepare(`
+  const createTransaction = db.transaction(() => {
+    db.prepare(`
     INSERT INTO transactions (id, amount, currency, description, status, created_at)
     VALUES (?, ?, ?, ?, 'pending', ?)
   `).run(id, amount, currency, description.trim(), createdAt);
 
-  if (idempotencyKey) {
-    db.prepare(`
+    if (idempotencyKey) {
+      db.prepare(`
       INSERT INTO idempotency_keys (key, transaction_id)
       VALUES (?, ?)
     `).run(idempotencyKey, id);
-  }
-});
+    }
+  });
   try {
     createTransaction();
   } catch (error) {
@@ -239,6 +349,85 @@ const createTransaction = db.transaction(() => {
 
 
 app.get("/api/transactions", (req, res) => {
+  const { limit, page, status, search, startDate, endDate } = req.query;
+
+  // Support pagination, status filtering, search, and date filtering if query parameters are provided
+  if (
+    limit !== undefined ||
+    page !== undefined ||
+    status !== undefined ||
+    search !== undefined ||
+    startDate !== undefined ||
+    endDate !== undefined
+  ) {
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit || 25), 10)));
+    const pageNum = Math.max(1, parseInt(String(page || 1), 10));
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (status && typeof status === "string" && status !== "all") {
+      conditions.push("status = ?");
+      params.push(status);
+    }
+
+    if (search && typeof search === "string" && search.trim().length > 0) {
+      conditions.push("(id LIKE ? OR description LIKE ?)");
+      params.push(`%${search.trim()}%`, `%${search.trim()}%`);
+    }
+
+    if (startDate && typeof startDate === "string" && startDate.trim().length > 0) {
+      conditions.push("created_at >= ?");
+      params.push(startDate.trim());
+    }
+
+    if (endDate && typeof endDate === "string" && endDate.trim().length > 0) {
+      conditions.push("created_at <= ?");
+      params.push(endDate.trim());
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const totalRow = db.prepare(
+      `SELECT count(*) as count FROM transactions ${whereClause}`
+    ).get(...params) as { count: number } | undefined;
+    const total = totalRow ? totalRow.count : 0;
+
+    const transactions = db.prepare(
+      `SELECT * FROM transactions ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    ).all(...params, limitNum, offset);
+
+    // Provide aggregate status counts for dashboard summary
+    const statusRows = db.prepare(
+      "SELECT status, count(*) as count FROM transactions GROUP BY status"
+    ).all() as { status: string; count: number }[];
+
+    const statusCounts: Record<string, number> = {
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0,
+      unknown: 0
+    };
+    for (const row of statusRows) {
+      if (row.status in statusCounts) {
+        statusCounts[row.status] = row.count;
+      }
+    }
+
+    return res.status(200).json({
+      count: transactions.length,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+      statusCounts,
+      transactions
+    });
+  }
+
+  // Preserve original unparameterized query behavior
   const transactions = db.prepare(
     "SELECT * FROM transactions ORDER BY created_at DESC"
   ).all();
@@ -361,8 +550,8 @@ ORDER BY created_at ASC
         }
 
         if (state === "failed") {
-  await job.remove();
-}
+          await job.remove();
+        }
       }
 
       let remoteExists = false;
