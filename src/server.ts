@@ -1,6 +1,7 @@
 import { connection } from "./queue/transactionQueue";
 import axios from "axios";
 import express from "express";
+import cors from 'cors';
 import { randomUUID } from "crypto";
 import db from "./db/database";
 import { transactionQueue } from "./queue/transactionQueue";
@@ -8,7 +9,11 @@ import { transactionQueue } from "./queue/transactionQueue";
 export const app = express();
 const PORT = 3000;
 
+app.use(cors({
+  origin: 'http://localhost:5173'
+}));
 
+app.use(express.json());
 app.use(express.json());
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:5173",
@@ -31,16 +36,15 @@ app.use((req, res, next) => {
   }
   next();
 });
-
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin@123";
 const activeTokens = new Map<string, { username: string; expiresAt: number }>();
 
 function generateAuthToken(username: string): string {
   const token = randomUUID();
   activeTokens.set(token, {
     username,
-    expiresAt: Date.now() + 24 * 60 * 60 * 1000
+    expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
   });
   return token;
 }
@@ -249,19 +253,19 @@ app.post("/api/transactions", async (req, res) => {
   const createdAt = new Date().toISOString();
 
 
-const createTransaction = db.transaction(() => {
-  db.prepare(`
+  const createTransaction = db.transaction(() => {
+    db.prepare(`
     INSERT INTO transactions (id, amount, currency, description, status, created_at)
     VALUES (?, ?, ?, ?, 'pending', ?)
   `).run(id, amount, currency, description.trim(), createdAt);
 
-  if (idempotencyKey) {
-    db.prepare(`
+    if (idempotencyKey) {
+      db.prepare(`
       INSERT INTO idempotency_keys (key, transaction_id)
       VALUES (?, ?)
     `).run(idempotencyKey, id);
-  }
-});
+    }
+  });
   try {
     createTransaction();
   } catch (error) {
@@ -347,6 +351,7 @@ const createTransaction = db.transaction(() => {
 app.get("/api/transactions", (req, res) => {
   const { limit, page, status, search, startDate, endDate } = req.query;
 
+  // Support pagination, status filtering, search, and date filtering if query parameters are provided
   if (
     limit !== undefined ||
     page !== undefined ||
@@ -393,6 +398,7 @@ app.get("/api/transactions", (req, res) => {
       `SELECT * FROM transactions ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`
     ).all(...params, limitNum, offset);
 
+    // Provide aggregate status counts for dashboard summary
     const statusRows = db.prepare(
       "SELECT status, count(*) as count FROM transactions GROUP BY status"
     ).all() as { status: string; count: number }[];
@@ -421,6 +427,7 @@ app.get("/api/transactions", (req, res) => {
     });
   }
 
+  // Preserve original unparameterized query behavior
   const transactions = db.prepare(
     "SELECT * FROM transactions ORDER BY created_at DESC"
   ).all();
@@ -543,8 +550,8 @@ ORDER BY created_at ASC
         }
 
         if (state === "failed") {
-  await job.remove();
-}
+          await job.remove();
+        }
       }
 
       let remoteExists = false;

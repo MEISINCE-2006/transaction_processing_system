@@ -10,6 +10,7 @@ import { PerformancePage } from './pages/PerformancePage';
 import { QueuePage } from './pages/QueuePage';
 import { AlertsPage } from './pages/AlertsPage';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
+import { ToastProvider } from './components/common/ToastProvider';
 
 const DashboardApp: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -53,11 +54,13 @@ const DashboardApp: React.FC = () => {
   };
 
   return (
-    <DashboardProvider>
-      <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
-        {renderPage()}
-      </Layout>
-    </DashboardProvider>
+    <ToastProvider>
+      <DashboardProvider>
+        <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
+          {renderPage()}
+        </Layout>
+      </DashboardProvider>
+    </ToastProvider>
   );
 };
 

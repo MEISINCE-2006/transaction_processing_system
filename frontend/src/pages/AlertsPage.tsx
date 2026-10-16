@@ -55,7 +55,6 @@ export const AlertsPage: React.FC = () => {
 
   return (
     <div>
-      {/* Backend Alert Architecture Notice */}
       <div className="alert-banner alert-banner-info" style={{ marginBottom: '20px' }}>
         <Info size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
         <div style={{ flex: 1 }}>
@@ -67,7 +66,6 @@ export const AlertsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Summary KPI Cards */}
       <div className="grid-cards" style={{ marginBottom: '20px' }}>
         <div className="metric-card">
           <div className="metric-header">
@@ -103,7 +101,6 @@ export const AlertsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Toolbar */}
       <div className="card" style={{ padding: '14px 18px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -144,7 +141,6 @@ export const AlertsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Alert List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {filteredAlerts.length === 0 ? (
           <div className="card" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>

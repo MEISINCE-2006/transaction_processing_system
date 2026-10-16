@@ -27,7 +27,6 @@ export const PerformancePage: React.FC = () => {
   const { clientLatencyMs, isDemoMode, setIsDemoMode } = useDashboard();
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
 
-  // Simulated benchmark datasets based on Autocannon load testing in repository
   const generateDemoThroughput = () => {
     const points = [];
     const base = 980;
@@ -48,7 +47,6 @@ export const PerformancePage: React.FC = () => {
 
   return (
     <div>
-      {/* Telemetry Architecture Notice */}
       <div className="alert-banner alert-banner-info" style={{ marginBottom: '20px' }}>
         <Info size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
         <div style={{ flex: 1 }}>
@@ -74,7 +72,6 @@ export const PerformancePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Real-time Client Round-Trip Latency Card */}
       <div className="card" style={{ marginBottom: '24px', backgroundColor: 'var(--bg-primary)' }}>
         <div className="card-header" style={{ marginBottom: '12px' }}>
           <div>
@@ -99,7 +96,6 @@ export const PerformancePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Time Range Selector */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <h2>Performance Metrics & Trends</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -118,9 +114,7 @@ export const PerformancePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Chart Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '20px' }}>
-        {/* Throughput Chart */}
         <div className="card">
           <div className="card-header">
             <div>
@@ -164,7 +158,6 @@ export const PerformancePage: React.FC = () => {
           )}
         </div>
 
-        {/* Latency Chart */}
         <div className="card">
           <div className="card-header">
             <div>
@@ -209,7 +202,6 @@ export const PerformancePage: React.FC = () => {
           )}
         </div>
 
-        {/* HTTP Error Rate Chart */}
         <div className="card" style={{ gridColumn: '1 / -1' }}>
           <div className="card-header">
             <div>

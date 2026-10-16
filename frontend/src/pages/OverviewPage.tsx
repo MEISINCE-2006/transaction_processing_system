@@ -50,7 +50,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
     <div>
       {error && <ErrorAlert message={error} onRetry={refreshDashboard} />}
 
-      {/* Backend Metrics Availability Banner */}
       <div className="alert-banner alert-banner-info" style={{ marginBottom: '20px' }}>
         <Info size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
         <div style={{ flex: 1 }}>
@@ -63,7 +62,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Primary KPI Grid: Real SQLite Transaction Counts */}
       <div style={{ marginBottom: '10px' }}>
         <h2>Transaction Statistics (SQLite)</h2>
       </div>
@@ -106,7 +104,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
         />
       </div>
 
-      {/* Services & Queue Health Grid */}
       <div style={{ marginBottom: '10px' }}>
         <h2>Infrastructure & Worker Telemetry</h2>
       </div>
@@ -185,7 +182,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Performance Metrics: Transparent Real vs Unavailable */}
       <div style={{ marginBottom: '10px' }}>
         <h2>API Performance Metrics</h2>
       </div>
@@ -232,9 +228,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
         />
       </div>
 
-      {/* Two Column Section: Recent Transactions & Active Alerts */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
-        {/* Recent Transactions Card */}
         <div className="card">
           <div className="card-header">
             <div>
@@ -290,7 +284,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
           )}
         </div>
 
-        {/* Active Alerts Card */}
         <div className="card">
           <div className="card-header">
             <div>
